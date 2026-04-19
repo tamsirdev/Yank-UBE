@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UBEP | Used Book Exchange Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="ember.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="container nav-container">
+    <div class="logo">
+      <i class="fas fa-book-open"></i>
+      <h2>UBEP</h2>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a href="#" data-nav="dashboard" class="nav-link active">Dashboard</a>
+      <a href="#" data-nav="browse" class="nav-link">Browse Books</a>
+      <a href="#" data-nav="messages" class="nav-link">Messages</a>
+      <a href="#" data-nav="addBook" class="nav-link">Sell/Exchange</a>
+    </div>
+    <div class="nav-actions">
+      <span id="userGreeting"></span>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<main id="appRoot" class="container" style="margin-top: 2rem; margin-bottom: 3rem;"></main>
+
+<script src="ember.js"></script>
+</body>
+</html>
