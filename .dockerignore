@@ -1,0 +1,5 @@
+*.doc
+.git
+.DS_Store
+Dockerfile
+.dockerignore
