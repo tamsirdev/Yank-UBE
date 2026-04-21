@@ -1,6 +1,6 @@
 /* ember.js - UBEP Core Logic | Session, Storage, UI Magic */
 
-// ========== STORAGE KEYS ==========
+// ========== STORAGE KEYS   
 const STORAGE_KEYS = {
   USERS: 'ubep_users',
   BOOKS: 'ubep_books',
@@ -30,7 +30,8 @@ function seedInitialData() {
   if (users.length === 0) {
     users = [
       { id: 'u1', name: 'Alex Reader', email: 'alex@ubep.com', password: '123' },
-      { id: 'u2', name: 'Jamie Bookworm', email: 'jamie@ubep.com', password: '123' }
+      { id: 'u2', name: 'Jamie Bookworm', email: 'jamie@ubep.com', password: '123' },
+      { id: 'u3', name: 'Admin1', email: 'admin@ubep.com', password: '1234' }
     ];
     saveUsers(users);
   }
@@ -76,7 +77,7 @@ function showLoginScreen() {
       <input type="password" id="loginPass" class="input" placeholder="Password" style="margin-bottom: 1rem;" required>
       <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
     </form>
-    <p style="margin-top: 1rem; font-size: 0.8rem;">Demo: alex@ubep.com / 123</p>
+    <p style="margin-top: 1rem; font-size: 0.8rem;">Demo: admin@gmail.com / Test@123</p>
     <button id="showSignupBtn" class="btn btn-outline" style="width: 100%; margin-top: 1rem;">Create Account</button>
   `;
   
