@@ -1,52 +1,32 @@
-/* ember.js - UBEP Core Logic | Session, Storage, UI Magic */
+/* ember.js - UBEP Core Logic | Backend API Integration */
 
-// ========== STORAGE KEYS   
-const STORAGE_KEYS = {
-  USERS: 'ubep_users',
-  BOOKS: 'ubep_books',
-  MESSAGES: 'ubep_messages',
-  EXCHANGES: 'ubep_exchanges',
-  SESSION: 'ubep_session'
-};
+const API_URL = ''; // Relative to origin
 
 // ========== HELPERS ==========
-function getUsers() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]'); }
-function saveUsers(users) { localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users)); }
-function getBooks() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.BOOKS) || '[]'); }
-function saveBooks(books) { localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(books)); }
-function getMessages() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.MESSAGES) || '[]'); }
-function saveMessages(msgs) { localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(msgs)); }
-function getExchanges() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.EXCHANGES) || '[]'); }
-function saveExchanges(ex) { localStorage.setItem(STORAGE_KEYS.EXCHANGES, JSON.stringify(ex)); }
+async function apiFetch(endpoint, options = {}) {
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'API Error');
+    return data;
+  } catch (err) {
+    showToast(err.message, true);
+    throw err;
+  }
+}
 
 let currentUser = null;
-function getSession() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.SESSION) || 'null'); }
-function setSession(user) { currentUser = user; localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user)); }
-function clearSession() { localStorage.removeItem(STORAGE_KEYS.SESSION); currentUser = null; }
+const SESSION_KEY = 'ubep_session';
 
-// ========== SEED DATA ==========
-function seedInitialData() {
-  let users = getUsers();
-  if (users.length === 0) {
-    users = [
-      { id: 'u1', name: 'Alex Reader', email: 'alex@ubep.com', password: '123' },
-      { id: 'u2', name: 'Jamie Bookworm', email: 'jamie@ubep.com', password: '123' },
-      { id: 'u3', name: 'Admin1', email: 'admin@ubep.com', password: '1234' }
-    ];
-    saveUsers(users);
-  }
-  let books = getBooks();
-  if (books.length === 0) {
-    books = [
-      { id: 'b1', title: 'Atomic Habits', author: 'James Clear', category: 'Self-Help', condition: 'Like New', price: 12, ownerId: 'u1', image: 'https://picsum.photos/id/20/300/200' },
-      { id: 'b2', title: 'Clean Code', author: 'Robert Martin', category: 'Tech', condition: 'Good', price: 18, ownerId: 'u1', image: 'https://picsum.photos/id/0/300/200' },
-      { id: 'b3', title: 'The Midnight Library', author: 'Matt Haig', category: 'Fiction', condition: 'Very Good', price: 10, ownerId: 'u2', image: 'https://picsum.photos/id/26/300/200' }
-    ];
-    saveBooks(books);
-  }
-  if (getExchanges().length === 0) saveExchanges([]);
-  if (getMessages().length === 0) saveMessages([]);
-}
+function getSession() { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+function setSession(user) { currentUser = user; localStorage.setItem(SESSION_KEY, JSON.stringify(user)); }
+function clearSession() { localStorage.removeItem(SESSION_KEY); currentUser = null; }
 
 function showToast(msg, isError = false) {
   const toast = document.createElement('div');
@@ -77,7 +57,6 @@ function showLoginScreen() {
       <input type="password" id="loginPass" class="input" placeholder="Password" style="margin-bottom: 1rem;" required>
       <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
     </form>
-    <p style="margin-top: 1rem; font-size: 0.8rem;">Demo: admin@gmail.com / Test@123</p>
     <button id="showSignupBtn" class="btn btn-outline" style="width: 100%; margin-top: 1rem;">Create Account</button>
   `;
   
@@ -95,13 +74,19 @@ function showLoginScreen() {
   container.innerHTML = loginHtml;
   
   function attachLogin() {
-    document.getElementById('loginForm')?.addEventListener('submit', (e) => {
+    document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('loginEmail').value;
-      const pwd = document.getElementById('loginPass').value;
-      const user = getUsers().find(u => u.email === email && u.password === pwd);
-      if(user) { setSession(user); showToast(`Welcome ${user.name}`); renderCurrentView(); }
-      else showToast('Invalid credentials', true);
+      const password = document.getElementById('loginPass').value;
+      try {
+        const user = await apiFetch('/api/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        setSession(user);
+        showToast(`Welcome ${user.name}`);
+        renderCurrentView();
+      } catch (e) {}
     });
     document.getElementById('showSignupBtn')?.addEventListener('click', () => {
       container.innerHTML = signupHtml;
@@ -110,20 +95,20 @@ function showLoginScreen() {
   }
   
   function attachSignup() {
-    document.getElementById('signupForm')?.addEventListener('submit', (e) => {
+    document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('signupName').value;
       const email = document.getElementById('signupEmail').value;
-      const pwd = document.getElementById('signupPass').value;
-      if(!name || !email || !pwd) return showToast('Fill all fields', true);
-      let users = getUsers();
-      if(users.find(u=>u.email===email)) return showToast('Email exists', true);
-      const newUser = { id: 'u'+Date.now(), name, email, password: pwd };
-      users.push(newUser);
-      saveUsers(users);
-      setSession(newUser);
-      showToast(`Welcome ${name}!`);
-      renderCurrentView();
+      const password = document.getElementById('signupPass').value;
+      try {
+        const user = await apiFetch('/api/users', {
+          method: 'POST',
+          body: JSON.stringify({ name, email, password }),
+        });
+        setSession(user);
+        showToast(`Welcome ${name}!`);
+        renderCurrentView();
+      } catch (e) {}
     });
     document.getElementById('showLoginBtn')?.addEventListener('click', () => {
       container.innerHTML = loginHtml;
@@ -134,10 +119,10 @@ function showLoginScreen() {
 }
 
 // ========== DASHBOARD ==========
-function renderDashboard() {
-  const books = getBooks().filter(b => b.ownerId === currentUser.id);
-  const exchanges = getExchanges().filter(ex => ex.fromUser === currentUser.id || ex.toUser === currentUser.id);
-  const messagesCount = getMessages().filter(m => m.receiverId === currentUser.id && !m.read).length;
+async function renderDashboard() {
+  const books = (await apiFetch('/api/books')).filter(b => b.owner_id === currentUser.id);
+  const exchanges = await apiFetch(`/api/exchanges/${currentUser.id}`);
+  const messagesCount = 0; // Placeholder
   
   document.getElementById('appRoot').innerHTML = `
     <div style="display: flex; flex-wrap: wrap; gap: 2rem;">
@@ -172,17 +157,15 @@ function renderDashboard() {
   document.querySelector('[data-nav-messages]')?.addEventListener('click', () => { window.location.hash = 'messages'; renderCurrentView(); });
 }
 
-window.deleteBook = (id) => {
-  let books = getBooks();
-  books = books.filter(b => b.id !== id);
-  saveBooks(books);
+window.deleteBook = async (id) => {
+  await apiFetch(`/api/books/${id}`, { method: 'DELETE' });
   showToast('Book removed');
   renderDashboard();
 };
 
 // ========== BROWSE BOOKS ==========
-function renderBrowse() {
-  let allBooks = getBooks();
+async function renderBrowse() {
+  const allBooks = await apiFetch('/api/books');
   const currentUserId = currentUser.id;
   
   document.getElementById('appRoot').innerHTML = `
@@ -198,7 +181,7 @@ function renderBrowse() {
   `;
   
   function filterAndRender() {
-    let filtered = allBooks.filter(b => b.ownerId !== currentUserId);
+    let filtered = allBooks.filter(b => b.owner_id !== currentUserId);
     const title = document.getElementById('searchTitle')?.value.toLowerCase();
     const cat = document.getElementById('filterCategory')?.value;
     if(title) filtered = filtered.filter(b => b.title.toLowerCase().includes(title));
@@ -213,7 +196,7 @@ function renderBrowse() {
         <p>by ${book.author}</p>
         <p><strong>$${book.price}</strong> · ${book.condition}</p>
         <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-          <button class="btn btn-primary" data-owner="${book.ownerId}">💬 Message</button>
+          <button class="btn btn-primary" data-owner="${book.owner_id}">💬 Message</button>
           <button class="btn btn-outline" data-book='${JSON.stringify(book).replace(/'/g, "&#39;")}'>🔄 Exchange</button>
         </div>
       </div>
@@ -241,91 +224,16 @@ function renderBrowse() {
 function startChatWithUser(otherUserId) {
   window.location.hash = 'messages';
   renderCurrentView();
-  setTimeout(() => {
-    const chatSelect = document.querySelector(`.chat-user-item[data-userid="${otherUserId}"]`);
-    if(chatSelect) chatSelect.click();
-  }, 100);
 }
 
-function renderMessages() {
-  const messages = getMessages();
-  const users = getUsers();
-  const conversations = new Map();
-  
-  messages.forEach(msg => {
-    const partner = msg.senderId === currentUser.id ? msg.receiverId : msg.senderId;
-    if(!conversations.has(partner)) conversations.set(partner, []);
-    conversations.get(partner).push(msg);
-  });
-  
-  document.getElementById('appRoot').innerHTML = `
-    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-      <div class="card" style="flex: 1; min-width: 200px;">
-        <h3>Conversations</h3>
-        <div id="convoList"></div>
-      </div>
-      <div class="card" style="flex: 2; min-width: 300px;">
-        <h3 id="chatHeader">Select a chat</h3>
-        <div id="chatWindow" style="height: 350px; overflow-y: auto; background: #F4F1DE; border-radius: 0.75rem; padding: 1rem;"></div>
-        <div style="display: flex; margin-top: 1rem; gap: 0.5rem;">
-          <input id="messageInput" class="input" placeholder="Type a message...">
-          <button id="sendMsgBtn" class="btn btn-primary">Send</button>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  let activePartnerId = null;
-  
-  function renderConversations() {
-    const convoDiv = document.getElementById('convoList');
-    convoDiv.innerHTML = '';
-    for(let [partnerId, msgs] of conversations) {
-      const partner = users.find(u => u.id === partnerId);
-      if(!partner) continue;
-      const lastMsg = msgs[msgs.length-1];
-      const div = document.createElement('div');
-      div.className = 'chat-user-item';
-      div.setAttribute('data-userid', partnerId);
-      div.innerHTML = `<strong>${partner.name}</strong><div style="font-size: 0.8rem;">${lastMsg?.text?.slice(0, 40) || 'Start chatting'}</div>`;
-      div.addEventListener('click', () => { activePartnerId = partnerId; loadChat(partnerId); });
-      convoDiv.appendChild(div);
-    }
-    if(convoDiv.children.length === 0) convoDiv.innerHTML = '<p style="text-align: center;">No messages yet</p>';
-  }
-  
-  function loadChat(partnerId) {
-    const partner = users.find(u => u.id === partnerId);
-    document.getElementById('chatHeader').innerHTML = `Chat with ${partner?.name}`;
-    const relevant = messages.filter(m => (m.senderId === currentUser.id && m.receiverId === partnerId) || (m.senderId === partnerId && m.receiverId === currentUser.id));
-    const chatDiv = document.getElementById('chatWindow');
-    chatDiv.innerHTML = relevant.map(m => `
-      <div style="margin: 0.5rem; text-align: ${m.senderId === currentUser.id ? 'right' : 'left'};">
-        <span class="card" style="display: inline-block; padding: 0.5rem 1rem; background: ${m.senderId === currentUser.id ? '#E07A5F' : 'white'}; color: ${m.senderId === currentUser.id ? 'white' : '#3D405B'};">${m.text}<br><small>${new Date(m.time).toLocaleTimeString()}</small></span>
-      </div>
-    `).join('');
-    chatDiv.scrollTop = chatDiv.scrollHeight;
-  }
-  
-  document.getElementById('sendMsgBtn')?.addEventListener('click', () => {
-    if(!activePartnerId) return showToast('Select a conversation first', true);
-    const input = document.getElementById('messageInput');
-    if(!input.value.trim()) return;
-    const newMsg = { senderId: currentUser.id, receiverId: activePartnerId, text: input.value, time: Date.now() };
-    let msgs = getMessages();
-    msgs.push(newMsg);
-    saveMessages(msgs);
-    input.value = '';
-    renderMessages();
-    showToast('Message sent');
-  });
-  
-  renderConversations();
+async function renderMessages() {
+  const messages = await apiFetch(`/api/messages/${currentUser.id}`);
+  document.getElementById('appRoot').innerHTML = `<div class="card">Messaging is currently being migrated to the database.</div>`;
 }
 
 // ========== EXCHANGE MODAL ==========
-function showExchangeModal(targetBook) {
-  const myBooks = getBooks().filter(b => b.ownerId === currentUser.id);
+async function showExchangeModal(targetBook) {
+  const myBooks = (await apiFetch('/api/books')).filter(b => b.owner_id === currentUser.id);
   if(myBooks.length === 0) return showToast('You need a book to exchange!', true);
   
   const modal = document.createElement('div');
@@ -345,12 +253,18 @@ function showExchangeModal(targetBook) {
   `;
   document.body.appendChild(modal);
   
-  document.getElementById('confirmExchange').onclick = () => {
-    const offeredBook = myBooks.find(b => b.id === document.getElementById('exchangeBookSelect').value);
-    const exchanges = getExchanges();
-    exchanges.push({ id: 'ex'+Date.now(), fromUser: currentUser.id, toUser: targetBook.ownerId, offeredBook, requestedBook: targetBook, status: 'Pending' });
-    saveExchanges(exchanges);
-    showToast(`Exchange request sent for ${offeredBook.title}`);
+  document.getElementById('confirmExchange').onclick = async () => {
+    const offeredBookId = document.getElementById('exchangeBookSelect').value;
+    await apiFetch('/api/exchanges', {
+      method: 'POST',
+      body: JSON.stringify({
+        fromUser: currentUser.id,
+        toUser: targetBook.owner_id,
+        offeredBookId,
+        requestedBookId: targetBook.id
+      })
+    });
+    showToast(`Exchange request sent`);
     modal.remove();
   };
   document.getElementById('cancelExchange').onclick = () => modal.remove();
@@ -373,10 +287,9 @@ function renderAddBookForm() {
     </div>
   `;
   
-  document.getElementById('newBookForm').addEventListener('submit', (e) => {
+  document.getElementById('newBookForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const newBook = {
-      id: 'b'+Date.now(),
       title: document.getElementById('bookTitle').value,
       author: document.getElementById('bookAuthor').value,
       category: document.getElementById('bookCategory').value,
@@ -385,9 +298,10 @@ function renderAddBookForm() {
       ownerId: currentUser.id,
       image: document.getElementById('bookImage').value
     };
-    let books = getBooks();
-    books.push(newBook);
-    saveBooks(books);
+    await apiFetch('/api/books', {
+      method: 'POST',
+      body: JSON.stringify(newBook)
+    });
     showToast('Book listed successfully!');
     window.location.hash = 'dashboard';
     renderCurrentView();
@@ -411,7 +325,6 @@ function renderCurrentView() {
 
 // ========== BOOTSTRAP ==========
 function init() {
-  seedInitialData();
   const sessionUser = getSession();
   if(sessionUser) currentUser = sessionUser;
   

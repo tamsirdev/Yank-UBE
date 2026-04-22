@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ubep
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "9000:9000"
+    environment:
+      DATABASE_URL: postgres://user:password@db:5432/ubep
+      PORT: 9000
+    depends_on:
+      - db
+
+volumes:
+  db_data:

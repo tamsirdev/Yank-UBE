@@ -1,14 +1,18 @@
-# Use a lightweight Nginx image to serve static files
-FROM nginx:alpine
+# Use Node.js for the backend
+FROM node:18-alpine
 
-# Copy all files from the current directory to the Nginx HTML directory
-COPY . /usr/share/nginx/html
+# Set working directory
+WORKDIR /app
 
-# Update Nginx to listen on port 9000 instead of 80
-RUN sed -i 's/listen\(.*\)80;/listen 9000;/g' /etc/nginx/conf.d/default.conf
+# Copy package.json and install dependencies
+COPY package*.json ./
+RUN npm install
 
-# Expose port 9000 to allow external access
+# Copy the rest of the application
+COPY . .
+
+# Expose the backend port
 EXPOSE 9000
 
-# Start Nginx in the foreground
-CMD ["nginx", "-g", "daemon off;"]
+# Start the server
+CMD ["node", "server.js"]
