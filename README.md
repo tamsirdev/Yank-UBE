@@ -6,22 +6,25 @@ UBEP is a full-stack platform designed to facilitate the sharing, selling, and e
 
 ## 🚀 Features
 
-- **User Authentication**: Secure sign-up and login functionality.
-- **Book Marketplace**: Browse books listed by other users with search and category filtering.
-- **Personal Dashboard**: Manage your own book listings and track exchange requests.
-- **Exchange System**: Propose book-for-book exchanges with other users.
-- **Direct Messaging**: Connect with sellers and exchangers through an integrated chat system.
-- **Responsive UI**: Clean, modern interface designed for both desktop and mobile use.
+- **Secure User Authentication**: Sign-up and login with **BCrypt password hashing**.
+- **User Roles**: Separate roles for **Regular Users** and **Administrators**.
+- **Admin Panel**: Dedicated dashboard for monitoring system statistics (Users, Books, Exchanges).
+- **Book Marketplace**: Browse books with search and category filtering.
+- **Personal Dashboard**: Manage listings, update book status (Available, Sold, Exchanged).
+- **Real-time Messaging**: Instant chat powered by **Socket.io**.
+- **Exchange System**: Propose and track book-for-book exchange requests.
+- **Responsive UI**: Modern interface with color-coded status badges and dynamic navigation.
 
 ---
 
 ## 🛠 Tech Stack
 
-- **Frontend**: HTML5, CSS3 (Custom styles), JavaScript (Ember-inspired modular logic).
-- **Backend**: Node.js, Express.js.
-- **Database**: PostgreSQL.
+- **Frontend**: HTML5, CSS3, JavaScript (Modular logic).
+- **Backend**: Node.js, Express.js, **Socket.io**.
+- **Database**: PostgreSQL (Relational persistence).
+- **Security**: BCryptJS for password encryption.
 - **Containerization**: Docker & Docker Compose.
-- **Deployment**: GitHub Pages (Static Frontend) & Cloudflare Tunnel (Remote Access).
+- **Remote Access**: Cloudflare Tunnel & GitHub Pages.
 
 ---
 
@@ -32,12 +35,13 @@ Yank-UBE/
 ├── public/                 # Static frontend files
 │   ├── index.html          # Main application entry point
 │   ├── ember.js            # Frontend logic & API communication
-│   ├── ember.css           # Custom styling
+│   ├── ember.css           # Custom styling & SRS badges
 │   └── *.jpg               # Product/Book images
-├── server.js               # Node.js/Express backend & DB initialization
+├── server.js               # Node.js/Express backend, Socket.io & DB initialization
 ├── Dockerfile              # Docker image configuration for the Node.js app
 ├── docker-compose.yml      # Orchestrates the App and PostgreSQL database
-├── package.json            # Node.js dependencies and scripts
+├── package.json            # Node.js dependencies (express, pg, socket.io, bcryptjs)
+├── README.md               # Project documentation
 └── .dockerignore           # Files excluded from the Docker build
 ```
 
@@ -46,7 +50,7 @@ Yank-UBE/
 ## ⚙️ Local Setup & Installation
 
 ### Prerequisites
-- [Docker](https://www.docker.com/products/docker-desktop/) installed on your machine.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed.
 
 ### Running the App
 1. **Clone the repository**:
@@ -67,28 +71,23 @@ Yank-UBE/
 
 ---
 
-## 🌐 Remote Access & Deployment
+## 🔐 Default Credentials
 
-### 1. Static Frontend (GitHub Pages)
-The frontend is deployed to GitHub Pages for fast, free static hosting.
-- **Live URL**: [https://tamsirdev.github.io/Yank-UBE/](https://tamsirdev.github.io/Yank-UBE/)
-- *Note: The static version uses `localStorage` for data persistence as it lacks a live backend.*
-
-### 2. Full-Stack Remote Access (Cloudflare Tunnel)
-To allow remote users to access the full-stack version (Node.js + Postgres) running on your local machine:
-- **Tunnel URL**: `https://connected-visitor-reduced-recipes.trycloudflare.com`
+| Role | Email | Password |
+|------|-------|----------|
+| **Admin** | `admin@ubep.com` | `admin123` |
+| **Demo User** | `alex@ubep.com` | `123` |
 
 ---
 
-## 🔌 API Endpoints (Brief)
+## 🌐 Remote Access & Deployment
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/users` | `POST` | Create a new user account |
-| `/api/login` | `POST` | Authenticate user and start session |
-| `/api/books` | `GET` | Retrieve all available books |
-| `/api/books` | `POST` | List a new book for sale/exchange |
-| `/api/books/:id` | `DELETE` | Remove a book listing |
+### 1. Static Frontend (GitHub Pages)
+- **Live URL**: [https://tamsirdev.github.io/Yank-UBE/](https://tamsirdev.github.io/Yank-UBE/)
+- *Note: Uses `localStorage` for simplified static demonstration.*
+
+### 2. Full-Stack Remote Access (Cloudflare Tunnel)
+- **Tunnel URL**: `https://connected-visitor-reduced-recipes.trycloudflare.com`
 
 ---
 
