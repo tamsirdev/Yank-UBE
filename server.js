@@ -7,9 +7,40 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const http = require('http');
 const { Server } = require('socket.io');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
+
+// --- Multer Storage Setup ---
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, 'public', 'uploads');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Only .jpeg, .jpg and .png files are allowed!'));
+  }
+});
+
 const io = new Server(server,  {
   cors: {
     origin: "*",
@@ -68,12 +99,18 @@ app.get('/api/books', async (req, res) => {
   }
 });
 
-app.post('/api/books', async (req, res) => {
-  const { title, author, category, condition, price, ownerId, image } = req.body;
+app.post('/api/books', upload.single('image'), async (req, res) => {
+  const { title, author, category, condition, price, ownerId } = req.body;
+  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+  
+  if (!imagePath) {
+    return res.status(400).json({ error: 'Book image is required and must be jpeg, jpg or png' });
+  }
+
   try {
     const result = await pool.query(
       'INSERT INTO books (title, author, category, condition, price, owner_id, image) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [title, author, category, condition, price, ownerId, image]
+      [title, author, category, condition, price, ownerId, imagePath]
     );
     res.json(result.rows[0]);
   } catch (err) {

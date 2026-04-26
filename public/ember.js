@@ -421,7 +421,8 @@ function renderAddBookForm() {
         <label>Category</label><select id="bookCategory" class="input"><option>Fiction</option><option>Self-Help</option><option>Tech</option></select>
         <label>Condition</label><select id="bookCondition" class="input"><option>Like New</option><option>Very Good</option><option>Good</option></select>
         <label>Price ($)</label><input type="number" id="bookPrice" class="input" required>
-        <label>Image URL</label><input id="bookImage" class="input" placeholder="https://picsum.photos/id/20/300/200" value="https://picsum.photos/id/20/300/200">
+        <label>Book Cover Image (JPG, PNG)</label>
+        <input type="file" id="bookImage" class="input" accept=".jpg,.jpeg,.png" required>
         <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">List Book</button>
       </form>
     </div>
@@ -429,22 +430,34 @@ function renderAddBookForm() {
   
   document.getElementById('newBookForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const newBook = {
-      title: document.getElementById('bookTitle').value,
-      author: document.getElementById('bookAuthor').value,
-      category: document.getElementById('bookCategory').value,
-      condition: document.getElementById('bookCondition').value,
-      price: parseInt(document.getElementById('bookPrice').value),
-      ownerId: currentUser.id,
-      image: document.getElementById('bookImage').value
-    };
-    await apiFetch('/api/books', {
-      method: 'POST',
-      body: JSON.stringify(newBook)
-    });
-    showToast('Book listed successfully!');
-    window.location.hash = 'dashboard';
-    renderCurrentView();
+    
+    const formData = new FormData();
+    formData.append('title', document.getElementById('bookTitle').value);
+    formData.append('author', document.getElementById('bookAuthor').value);
+    formData.append('category', document.getElementById('bookCategory').value);
+    formData.append('condition', document.getElementById('bookCondition').value);
+    formData.append('price', document.getElementById('bookPrice').value);
+    formData.append('ownerId', currentUser.id);
+    
+    const imageFile = document.getElementById('bookImage').files[0];
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/books`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to list book');
+      
+      showToast('Book listed successfully!');
+      window.location.hash = 'dashboard';
+      renderCurrentView();
+    } catch (err) {
+      showToast(err.message, true);
+    }
   });
 }
 
