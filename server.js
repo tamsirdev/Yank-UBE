@@ -10,7 +10,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
+const io = new Server(server,  {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
@@ -127,7 +127,7 @@ app.post('/api/users', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (name, email, phone, password) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, role',
+      'INSERT INTO users (name, email, phone, password) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, roles',
       [name, email, phone, hashedPassword]
     );
     res.json(result.rows[0]);
@@ -182,7 +182,7 @@ app.post('/api/exchanges', async (req, res) => {
 // Admin endpoints
 app.get('/api/admin/users', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, phone, role FROM users');
+    const result = await pool.query('SELECT id, name, email, phone, roles FROM users');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -219,8 +219,15 @@ async function initDb() {
         email VARCHAR(100) UNIQUE,
         phone VARCHAR(20),
         password VARCHAR(255),
-        role VARCHAR(20) DEFAULT 'user'
+        roles VARCHAR(20) DEFAULT 'user'
       );
+      -- Ensure roles column exists if table was created without it
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='roles') THEN 
+          ALTER TABLE users ADD COLUMN roles VARCHAR(20) DEFAULT 'user'; 
+        END IF; 
+      END $$;
       CREATE TABLE IF NOT EXISTS books (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255),
@@ -251,13 +258,24 @@ async function initDb() {
       );
     `);
     
-    // Seed Admin if not exists
-    const adminExists = await pool.query("SELECT * FROM users WHERE role = 'admin'");
-    if (adminExists.rows.length === 0) {
+    // Seed Users
+    const usersCount = await pool.query("SELECT COUNT(*) FROM users");
+    if (parseInt(usersCount.rows[0].count) === 0) {
+      console.log('Seeding initial users...');
       const adminPass = await bcrypt.hash('admin123', 10);
+      const userPass = await bcrypt.hash('123', 10);
+      
       await pool.query(
-        "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
         ['Admin User', 'admin@ubep.com', adminPass, 'admin']
+      );
+      await pool.query(
+        "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
+        ['Alex Reader', 'alex@ubep.com', userPass, 'user']
+      );
+      await pool.query(
+        "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
+        ['Jamie Bookworm', 'jamie@ubep.com', userPass, 'user']
       );
     }
 

@@ -279,7 +279,129 @@ label {
 .btn-danger { background: #ef4444; color: white; border: none; }
 .btn-danger:hover { background: #dc2626; }
 
-.chat-user-item.active {
+/* Messaging UI */
+.messaging-container {
+  display: flex;
+  height: calc(100vh - 180px);
+  min-height: 500px;
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.chat-sidebar {
+  width: 300px;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-sidebar h3 {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.chat-item:hover {
+  background: #f8fafc;
+}
+
+.chat-item.active {
   background: var(--warm-light);
-  border-left: 4px solid var(--warm);
+}
+
+.chat-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--warm);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.chat-info h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.2rem;
+}
+
+.chat-info p {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fcfcfc;
+}
+
+.chat-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.message {
+  max-width: 70%;
+  padding: 0.8rem 1rem;
+  border-radius: 1rem;
+  position: relative;
+}
+
+.message.sent {
+  align-self: flex-end;
+  background: var(--warm);
+  color: white;
+  border-bottom-right-radius: 0.2rem;
+}
+
+.message.received {
+  align-self: flex-start;
+  background: #e2e8f0;
+  color: var(--charcoal);
+  border-bottom-left-radius: 0.2rem;
+}
+
+.message-time {
+  font-size: 0.65rem;
+  margin-top: 0.3rem;
+  opacity: 0.7;
+}
+
+.chat-input {
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.badge-primary {
+  background: var(--warm);
+  color: white;
 }

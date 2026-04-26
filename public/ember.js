@@ -1,7 +1,17 @@
-/* ember.js - UBEP Core Logic | SRS Aligned */
+/* ember.js - UBEP Core Logic | Backend API Integration */
 
 const API_URL = ''; // Relative to origin
 let socket = null;
+
+function initSocket(userId) {
+  if (socket) socket.disconnect();
+  socket = io();
+  socket.emit('join', userId);
+  socket.on('receive_message', (msg) => {
+    showToast(`New message from user ${msg.sender_id}`);
+    if (window.location.hash === '#messages') renderMessages();
+  });
+}
 
 // ========== HELPERS ==========
 async function apiFetch(endpoint, options = {}) {
@@ -22,12 +32,13 @@ async function apiFetch(endpoint, options = {}) {
   }
 }
 
+
 let currentUser = null;
 const SESSION_KEY = 'ubep_session';
 
 function getSession() { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
-function setSession(user) { currentUser = user; localStorage.setItem(SESSION_KEY, JSON.stringify(user)); }
-function clearSession() { localStorage.removeItem(SESSION_KEY); currentUser = null; if(socket) socket.disconnect(); }
+function setSession(user) { currentUser = user; localStorage.setItem(SESSION_KEY, JSON.stringify(user)); if (user) initSocket(user.id); }
+function clearSession() { localStorage.removeItem(SESSION_KEY); currentUser = null; }
 
 function showToast(msg, isError = false) {
   const toast = document.createElement('div');
@@ -86,7 +97,6 @@ function showLoginScreen() {
           body: JSON.stringify({ email, password }),
         });
         setSession(user);
-        initSocket();
         showToast(`Welcome ${user.name}`);
         renderCurrentView();
       } catch (e) {}
@@ -110,7 +120,6 @@ function showLoginScreen() {
           body: JSON.stringify({ name, email, phone, password }),
         });
         setSession(user);
-        initSocket();
         showToast(`Welcome ${name}!`);
         renderCurrentView();
       } catch (e) {}
@@ -127,8 +136,7 @@ function showLoginScreen() {
 async function renderDashboard() {
   const books = (await apiFetch('/api/books')).filter(b => b.owner_id === currentUser.id);
   const exchanges = await apiFetch(`/api/exchanges/${currentUser.id}`);
-  const messages = await apiFetch(`/api/messages/${currentUser.id}`);
-  const unreadCount = messages.filter(m => m.receiver_id === currentUser.id && !m.is_read).length;
+  const messagesCount = 0; // Placeholder
   
   document.getElementById('appRoot').innerHTML = `
     <div style="display: flex; flex-wrap: wrap; gap: 2rem;">
@@ -141,13 +149,7 @@ async function renderDashboard() {
                 <img src="${book.image}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 0.5rem;">
                 <h4 style="margin-top: 0.5rem;">${book.title}</h4>
                 <p>$${book.price} · ${book.condition}</p>
-                <div class="badge ${book.status}">${book.status}</div>
-                <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
-                  <button onclick="window.updateStatus('${book.id}', 'available')" class="btn btn-outline btn-sm">Set Available</button>
-                  <button onclick="window.updateStatus('${book.id}', 'sold')" class="btn btn-outline btn-sm">Set Sold</button>
-                  <button onclick="window.updateStatus('${book.id}', 'exchanged')" class="btn btn-outline btn-sm">Set Exchanged</button>
-                  <button onclick="window.deleteBook('${book.id}')" class="btn btn-danger btn-sm">Delete</button>
-                </div>
+                <button onclick="window.deleteBook('${book.id}')" class="btn btn-outline" style="margin-top: 0.5rem; width: 100%;">Delete</button>
               </div>
             `).join('') || '<p style="text-align: center;">No books yet. Start selling!</p>'}
           </div>
@@ -156,31 +158,22 @@ async function renderDashboard() {
       <div style="flex: 1;">
         <div class="card">
           <h3><i class="fas fa-envelope"></i> Messages</h3>
-          <p>Unread: ${unreadCount}</p>
-          <button class="btn btn-primary" onclick="window.location.hash='messages'">Go to Messages</button>
+          <p>Unread: ${messagesCount}</p>
+          <button class="btn btn-primary" data-nav-messages style="margin-top: 0.5rem;">Go to Messages</button>
         </div>
         <div class="card" style="margin-top: 1rem;">
           <h3><i class="fas fa-exchange-alt"></i> Exchanges (${exchanges.length})</h3>
-          ${exchanges.map(ex => `<div style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;"><b>${ex.status}</b>: ${ex.offered_title} ↔ ${ex.requested_title}</div>`).join('') || '<p>No exchange requests</p>'}
+          ${exchanges.map(ex => `<div style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;"><b>${ex.status}</b>: ${ex.offeredBook?.title || 'book'} ↔ ${ex.requestedBook?.title || 'book'}</div>`).join('') || '<p>No exchange requests</p>'}
         </div>
       </div>
     </div>
   `;
+  document.querySelector('[data-nav-messages]')?.addEventListener('click', () => { window.location.hash = 'messages'; renderCurrentView(); });
 }
 
 window.deleteBook = async (id) => {
-  if(!confirm('Are you sure you want to delete this book?')) return;
   await apiFetch(`/api/books/${id}`, { method: 'DELETE' });
   showToast('Book removed');
-  renderDashboard();
-};
-
-window.updateStatus = async (id, status) => {
-  await apiFetch(`/api/books/${id}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status })
-  });
-  showToast('Status updated');
   renderDashboard();
 };
 
@@ -202,7 +195,7 @@ async function renderBrowse() {
   `;
   
   function filterAndRender() {
-    let filtered = allBooks.filter(b => b.owner_id !== currentUserId && b.status === 'available');
+    let filtered = allBooks.filter(b => b.owner_id !== currentUserId);
     const title = document.getElementById('searchTitle')?.value.toLowerCase();
     const cat = document.getElementById('filterCategory')?.value;
     if(title) filtered = filtered.filter(b => b.title.toLowerCase().includes(title));
@@ -215,15 +208,17 @@ async function renderBrowse() {
         <img src="${book.image}" style="width: 100%; height: 160px; object-fit: cover; border-radius: 0.5rem;">
         <h3 style="margin-top: 0.5rem;">${book.title}</h3>
         <p>by ${book.author}</p>
-        <p>Seller: ${book.owner_name}</p>
         <p><strong>$${book.price}</strong> · ${book.condition}</p>
         <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-          <button class="btn btn-primary" onclick="window.startChatWithUser('${book.owner_id}', '${book.owner_name}')">💬 Message</button>
+          <button class="btn btn-primary" data-owner="${book.owner_id}">💬 Message</button>
           <button class="btn btn-outline" data-book='${JSON.stringify(book).replace(/'/g, "&#39;")}'>🔄 Exchange</button>
         </div>
       </div>
     `).join('');
     
+    document.querySelectorAll('[data-owner]').forEach(btn => {
+      btn.addEventListener('click', () => startChatWithUser(btn.dataset.owner));
+    });
     document.querySelectorAll('[data-book]').forEach(btn => {
       btn.addEventListener('click', () => showExchangeModal(JSON.parse(btn.dataset.book)));
     });
@@ -240,121 +235,93 @@ async function renderBrowse() {
 }
 
 // ========== MESSAGING ==========
-let activePartnerId = null;
+let activeChatUserId = null;
 
-window.startChatWithUser = (userId, name) => {
-  activePartnerId = userId;
+async function startChatWithUser(otherUserId) {
+  activeChatUserId = otherUserId;
   window.location.hash = 'messages';
   renderCurrentView();
-};
+}
 
 async function renderMessages() {
   const messages = await apiFetch(`/api/messages/${currentUser.id}`);
-  const partners = new Map();
   
+  // Group messages by conversation
+  const conversations = {};
   messages.forEach(m => {
-    const partnerId = m.sender_id === currentUser.id ? m.receiver_id : m.sender_id;
-    const partnerName = m.sender_id === currentUser.id ? m.receiver_name : m.sender_name;
-    if(!partners.has(partnerId)) partners.set(partnerId, { id: partnerId, name: partnerName, lastMsg: m.text });
+    const otherId = m.sender_id === currentUser.id ? m.receiver_id : m.sender_id;
+    const otherName = m.sender_id === currentUser.id ? m.receiver_name : m.sender_name;
+    if (!conversations[otherId]) conversations[otherId] = { name: otherName, messages: [] };
+    conversations[otherId].messages.push(m);
   });
 
-  document.getElementById('appRoot').innerHTML = `
-    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-      <div class="card" style="flex: 1; min-width: 250px;">
-        <h3>Conversations</h3>
-        <div id="convoList">
-          ${Array.from(partners.values()).map(p => `
-            <div class="chat-user-item ${activePartnerId == p.id ? 'active' : ''}" onclick="window.selectChat('${p.id}')">
-              <strong>${p.name}</strong>
-              <div style="font-size: 0.8rem; color: #666;">${p.lastMsg}</div>
-            </div>
-          `).join('') || '<p>No conversations yet</p>'}
-        </div>
+  const chatListHtml = Object.keys(conversations).map(id => `
+    <div class="chat-item ${activeChatUserId == id ? 'active' : ''}" onclick="window.setActiveChat('${id}')">
+      <div class="chat-avatar">${conversations[id].name[0]}</div>
+      <div class="chat-info">
+        <h4>${conversations[id].name}</h4>
+        <p>${conversations[id].messages[conversations[id].messages.length - 1].text.substring(0, 30)}...</p>
       </div>
-      <div class="card" style="flex: 2; min-width: 300px;">
-        <h3 id="chatHeader">${activePartnerId ? 'Chat' : 'Select a partner'}</h3>
-        <div id="chatWindow" style="height: 400px; overflow-y: auto; background: #f9f9fb; padding: 1rem; border-radius: 0.5rem;">
-          ${activePartnerId ? messages.filter(m => m.sender_id == activePartnerId || m.receiver_id == activePartnerId).map(m => `
-            <div style="margin-bottom: 1rem; text-align: ${m.sender_id == currentUser.id ? 'right' : 'left'};">
-              <div style="display: inline-block; padding: 0.5rem 1rem; border-radius: 1rem; background: ${m.sender_id == currentUser.id ? '#E07A5F' : '#f0f0f0'}; color: ${m.sender_id == currentUser.id ? 'white' : 'black'};">
-                ${m.text}
-              </div>
-            </div>
-          `).join('') : '<p style="text-align: center; color: #999;">Start a conversation from Browse Books</p>'}
+    </div>
+  `).join('');
+
+  const activeConv = activeChatUserId ? conversations[activeChatUserId] : null;
+  const chatBoxHtml = activeConv ? `
+    <div class="chat-header">
+      <h3>${activeConv.name}</h3>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      ${activeConv.messages.map(m => `
+        <div class="message ${m.sender_id === currentUser.id ? 'sent' : 'received'}">
+          <div class="message-content">${m.text}</div>
+          <div class="message-time">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
         </div>
-        ${activePartnerId ? `
-          <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-            <input id="messageInput" class="input" placeholder="Type a message...">
-            <button onclick="window.sendMessage()" class="btn btn-primary">Send</button>
-          </div>
-        ` : ''}
+      `).join('')}
+    </div>
+    <form class="chat-input" id="chatForm">
+      <input type="text" id="msgInput" class="input" placeholder="Type a message..." required>
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+  ` : `
+    <div style="height: 100%; display: flex; align-items: center; justify-content: center; color: #6b7280;">
+      <p>Select a conversation to start chatting</p>
+    </div>
+  `;
+
+  document.getElementById('appRoot').innerHTML = `
+    <div class="messaging-container card">
+      <div class="chat-sidebar">
+        <h3>Chats</h3>
+        <div class="chat-list">${chatListHtml || '<p style="padding: 1rem;">No messages yet.</p>'}</div>
+      </div>
+      <div class="chat-main">
+        ${chatBoxHtml}
       </div>
     </div>
   `;
-  const win = document.getElementById('chatWindow');
-  if(win) win.scrollTop = win.scrollHeight;
+
+  if (activeConv) {
+    const chatMsgs = document.getElementById('chatMessages');
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    
+    document.getElementById('chatForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = document.getElementById('msgInput').value;
+      if (!text) return;
+      socket.emit('send_message', {
+        senderId: currentUser.id,
+        receiverId: parseInt(activeChatUserId),
+        text
+      });
+      document.getElementById('msgInput').value = '';
+    });
+  }
 }
 
-window.selectChat = (userId) => {
-  activePartnerId = userId;
+window.setActiveChat = (id) => {
+  activeChatUserId = id;
   renderMessages();
 };
-
-window.sendMessage = () => {
-  const input = document.getElementById('messageInput');
-  const text = input.value.trim();
-  if(!text || !activePartnerId) return;
-  socket.emit('send_message', { senderId: currentUser.id, receiverId: activePartnerId, text });
-  input.value = '';
-};
-
-function initSocket() {
-  if(!currentUser || socket) return;
-  socket = io();
-  socket.emit('join', currentUser.id);
-  socket.on('receive_message', (msg) => {
-    if(window.location.hash === '#messages') renderMessages();
-    else showToast(`New message from ${msg.sender_name}`);
-  });
-}
-
-// ========== ADMIN PANEL ==========
-async function renderAdmin() {
-  if(currentUser.role !== 'admin') return renderDashboard();
-  const stats = await apiFetch('/api/admin/stats');
-  const users = await apiFetch('/api/admin/users');
-  
-  document.getElementById('appRoot').innerHTML = `
-    <div>
-      <h2><i class="fas fa-user-shield"></i> Admin Panel</h2>
-      <div class="grid-3" style="margin-bottom: 2rem;">
-        <div class="card" style="text-align: center;"><h3>Users</h3><h2 style="color: #E07A5F;">${stats.users}</h2></div>
-        <div class="card" style="text-align: center;"><h3>Books</h3><h2 style="color: #E07A5F;">${stats.books}</h2></div>
-        <div class="card" style="text-align: center;"><h3>Exchanges</h3><h2 style="color: #E07A5F;">${stats.exchanges}</h2></div>
-      </div>
-      <div class="card">
-        <h3>User Management</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
-          <thead>
-            <tr style="border-bottom: 2px solid #eee; text-align: left;">
-              <th>Name</th><th>Email</th><th>Phone</th><th>Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${users.map(u => `
-              <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 0.75rem 0;">${u.name}</td>
-                <td>${u.email}</td>
-                <td>${u.phone || '-'}</td>
-                <td><span class="badge ${u.role}">${u.role}</span></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
 
 // ========== EXCHANGE MODAL ==========
 async function showExchangeModal(targetBook) {
@@ -393,6 +360,54 @@ async function showExchangeModal(targetBook) {
     modal.remove();
   };
   document.getElementById('cancelExchange').onclick = () => modal.remove();
+}
+
+// ========== ADMIN PANEL ==========
+async function renderAdmin() {
+  const stats = await apiFetch('/api/admin/stats');
+  const users = await apiFetch('/api/admin/users');
+  
+  document.getElementById('appRoot').innerHTML = `
+    <div>
+      <h2><i class="fas fa-user-shield"></i> Admin Panel</h2>
+      <div class="grid-3" style="margin-bottom: 2rem;">
+        <div class="card" style="text-align: center;">
+          <h3>${stats.users}</h3>
+          <p>Total Users</p>
+        </div>
+        <div class="card" style="text-align: center;">
+          <h3>${stats.books}</h3>
+          <p>Total Books</p>
+        </div>
+        <div class="card" style="text-align: center;">
+          <h3>${stats.exchanges}</h3>
+          <p>Exchanges</p>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h3>User Management</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+          <thead>
+            <tr style="text-align: left; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 0.5rem;">Name</th>
+              <th style="padding: 0.5rem;">Email</th>
+              <th style="padding: 0.5rem;">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 0.5rem;">${u.name}</td>
+                <td style="padding: 0.5rem;">${u.email}</td>
+                <td style="padding: 0.5rem;"><span class="badge ${u.roles === 'admin' ? 'badge-primary' : ''}">${u.roles}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 // ========== ADD BOOK ==========
@@ -438,10 +453,8 @@ function renderCurrentView() {
   if(!currentUser) return showLoginScreen();
   const hash = window.location.hash.slice(1) || 'dashboard';
   document.getElementById('userGreeting').innerHTML = `👋 ${currentUser.name}`;
-  
-  // Show/Hide Admin link
   const adminLink = document.getElementById('adminLink');
-  if(adminLink) adminLink.style.display = currentUser.role === 'admin' ? 'block' : 'none';
+  if (adminLink) adminLink.style.display = currentUser.roles === 'admin' ? 'block' : 'none';
 
   const views = { dashboard: renderDashboard, browse: renderBrowse, messages: renderMessages, addBook: renderAddBookForm, admin: renderAdmin };
   if(views[hash]) views[hash]();
@@ -458,7 +471,7 @@ function init() {
   const sessionUser = getSession();
   if(sessionUser) {
     currentUser = sessionUser;
-    initSocket();
+    initSocket(currentUser.id);
   }
   
   document.querySelectorAll('.nav-link').forEach(link => {
