@@ -259,8 +259,7 @@ async function initDb() {
         roles VARCHAR(20) DEFAULT 'user'
       );
       ALTER TABLE users ADD COLUMN IF NOT EXISTS roles VARCHAR(20) DEFAULT 'user';
-    `);
-    console.log('User table verified/updated');
+
       CREATE TABLE IF NOT EXISTS books (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255),
@@ -290,6 +289,7 @@ async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    console.log('Database tables verified/updated');
     
     // Seed Admin if not exists
     const adminCheck = await pool.query("SELECT * FROM users WHERE email = $1", ['admin@ubep.com']);
