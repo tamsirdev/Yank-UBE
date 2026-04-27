@@ -82,5 +82,11 @@ ALTER TABLE users ADD COLUMN roles VARCHAR(20) DEFAULT 'user';
 ### 2. Image Uploads
 Ensure the `public/uploads` folder exists and has write permissions. The server will attempt to create it automatically, but on some systems (Windows), you might need to create it manually if you see upload errors.
 
-### 3. Database Connection Failed
-Double-check your `DATABASE_URL` in the `.env` file. Ensure the PostgreSQL service is running on your machine.
+### 4. Database Permission Denied (Schema Public)
+If you see `error: permission denied for schema public` when running `npm start`, run these commands in your PostgreSQL console:
+```sql
+-- Connect to your database first: \c ubep
+GRANT ALL ON SCHEMA public TO public;
+GRANT ALL ON SCHEMA public TO your_database_user;
+```
+Replace `your_database_user` with the user you created in Step 3.

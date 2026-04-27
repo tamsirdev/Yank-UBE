@@ -49,16 +49,41 @@ function showToast(msg, isError = false) {
   setTimeout(() => toast.remove(), 2500);
 }
 
-// ========== LOGIN UI ==========
+// ========== LANDING & LOGIN UI ==========
 function showLoginScreen() {
   const root = document.getElementById('appRoot');
   root.innerHTML = `
-    <div style="max-width: 450px; margin: 3rem auto;">
-      <div class="card" style="padding: 2rem; text-align: center;">
-        <i class="fas fa-book-open" style="font-size: 3rem; color: #E07A5F; margin-bottom: 1rem;"></i>
-        <h2 style="margin-bottom: 0.5rem;">Welcome to UBEP</h2>
-        <p style="color: #5a5d7a; margin-bottom: 2rem;">Share, Exchange, Discover</p>
-        <div id="authForm"></div>
+    <div class="landing-hero">
+      <div class="hero-content">
+        <i class="fas fa-book-open" style="font-size: 4rem; color: #E07A5F; margin-bottom: 1.5rem;"></i>
+        <h1>Used Book Exchange Portal</h1>
+        <p class="hero-tagline">Join thousands of readers swapping, selling, and discovering books sustainably.</p>
+        
+        <div class="landing-grid">
+          <div class="landing-feature">
+            <i class="fas fa-exchange-alt"></i>
+            <h3>Easy Exchange</h3>
+            <p>Swap books you've read for ones you want.</p>
+          </div>
+          <div class="landing-feature">
+            <i class="fas fa-dollar-sign"></i>
+            <h3>Save Money</h3>
+            <p>Buy second-hand books at a fraction of the cost.</p>
+          </div>
+          <div class="landing-feature">
+            <i class="fas fa-leaf"></i>
+            <h3>Stay Green</h3>
+            <p>Help the environment by reusing and recycling.</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="auth-section">
+        <div class="card auth-card">
+          <h2 id="authTitle">Welcome Back</h2>
+          <p id="authSubtitle" style="color: #5a5d7a; margin-bottom: 1.5rem;">Please login to your account</p>
+          <div id="authForm"></div>
+        </div>
       </div>
     </div>
   `;
@@ -69,7 +94,10 @@ function showLoginScreen() {
       <input type="password" id="loginPass" class="input" placeholder="Password" style="margin-bottom: 1rem;" required>
       <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
     </form>
-    <button id="showSignupBtn" class="btn btn-outline" style="width: 100%; margin-top: 1rem;">Create Account</button>
+    <div style="margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1rem;">
+      <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Don't have an account?</p>
+      <button id="showSignupBtn" class="btn btn-outline" style="width: 100%;">Create Account</button>
+    </div>
   `;
   
   const signupHtml = `
@@ -80,7 +108,10 @@ function showLoginScreen() {
       <input type="password" id="signupPass" class="input" placeholder="Password" style="margin-bottom: 1rem;" required>
       <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
     </form>
-    <button id="showLoginBtn" class="btn btn-outline" style="width: 100%; margin-top: 1rem;">Back to Login</button>
+    <div style="margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1rem;">
+      <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Already have an account?</p>
+      <button id="showLoginBtn" class="btn btn-outline" style="width: 100%;">Back to Login</button>
+    </div>
   `;
   
   const container = document.getElementById('authForm');
@@ -102,6 +133,8 @@ function showLoginScreen() {
       } catch (e) {}
     });
     document.getElementById('showSignupBtn')?.addEventListener('click', () => {
+      document.getElementById('authTitle').innerText = 'Join UBEP';
+      document.getElementById('authSubtitle').innerText = 'Start your reading journey today';
       container.innerHTML = signupHtml;
       attachSignup();
     });
@@ -125,6 +158,8 @@ function showLoginScreen() {
       } catch (e) {}
     });
     document.getElementById('showLoginBtn')?.addEventListener('click', () => {
+      document.getElementById('authTitle').innerText = 'Welcome Back';
+      document.getElementById('authSubtitle').innerText = 'Please login to your account';
       container.innerHTML = loginHtml;
       attachLogin();
     });
@@ -463,7 +498,13 @@ function renderAddBookForm() {
 
 // ========== MAIN RENDER ENGINE ==========
 function renderCurrentView() {
-  if(!currentUser) return showLoginScreen();
+  const navbar = document.getElementById('mainNavbar');
+  if(!currentUser) {
+    if (navbar) navbar.style.display = 'none';
+    return showLoginScreen();
+  }
+  
+  if (navbar) navbar.style.display = 'block';
   const hash = window.location.hash.slice(1) || 'dashboard';
   document.getElementById('userGreeting').innerHTML = `👋 ${currentUser.name}`;
   const adminLink = document.getElementById('adminLink');

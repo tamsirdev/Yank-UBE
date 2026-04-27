@@ -279,14 +279,84 @@ label {
 .btn-danger { background: #ef4444; color: white; border: none; }
 .btn-danger:hover { background: #dc2626; }
 
-/* Messaging UI */
-.messaging-container {
+/* Landing Page Styles */
+.landing-hero {
   display: flex;
-  height: calc(100vh - 180px);
-  min-height: 500px;
-  overflow: hidden;
-  padding: 0 !important;
+  min-height: calc(100vh - 80px);
+  align-items: center;
+  justify-content: space-around;
+  padding: 2rem;
+  background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+  gap: 2rem;
 }
+
+.hero-content {
+  max-width: 600px;
+}
+
+.hero-content h1 {
+  font-size: 3.5rem;
+  color: var(--charcoal);
+  margin-bottom: 1.5rem;
+  line-height: 1.2;
+}
+
+.hero-tagline {
+  font-size: 1.25rem;
+  color: #5a5d7a;
+  margin-bottom: 2.5rem;
+}
+
+.landing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.landing-feature {
+  text-align: center;
+}
+
+.landing-feature i {
+  font-size: 1.5rem;
+  color: var(--warm);
+  margin-bottom: 0.5rem;
+}
+
+.landing-feature h3 {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.landing-feature p {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.auth-section {
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-card {
+  padding: 2.5rem !important;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important;
+}
+
+@media (max-width: 992px) {
+  .landing-hero {
+    flex-direction: column;
+    padding: 3rem 1.5rem;
+    text-align: center;
+  }
+  .hero-content h1 {
+    font-size: 2.5rem;
+  }
+  .landing-grid {
+    margin-bottom: 2rem;
+  }
+}
+
 
 .chat-sidebar {
   width: 300px;

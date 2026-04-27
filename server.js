@@ -47,7 +47,7 @@ const io = new Server(server,  {
     methods: ["GET", "POST"]
   }
 });
-const port = process.env.PORT || 9000;
+const port = process.env.PORT || 3000;
 
 // PostgreSQL Connection
 const pool = new Pool({
@@ -318,7 +318,12 @@ async function initDb() {
 
     console.log('Database initialized');
   } catch (err) {
-    console.error('Database initialization failed', err);
+    console.error('Database initialization failed');
+    if (err.code === '42501') {
+      console.error('HINT: Your database user lacks permissions on the "public" schema.');
+      console.error('Run this in psql: GRANT ALL ON SCHEMA public TO ' + (process.env.DATABASE_URL.split(':')[1].replace('//', '') || 'your_user') + ';');
+    }
+    console.error(err);
   }
 }
 
