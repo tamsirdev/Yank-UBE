@@ -1,83 +1,85 @@
 # UBEP Technical Manual (Developer Guide)
-**Version 1.0**
+**Version 1.1 (Updated April 2026)**
 
 ## 1. Project Overview
-The Used Book Exchange Portal (UBEP) is a full-stack application built to facilitate book trading and sales. It follows a client-server architecture with real-time capabilities.
+The Used Book Exchange Portal (UBEP) is a community-driven full-stack platform for sharing and trading books. This manual provides technical details for developers to maintain and extend the system.
 
 ## 2. System Architecture
-- **Runtime**: Node.js (v18+)
-- **Framework**: Express.js
-- **Database**: PostgreSQL (Relational)
-- **Real-time**: Socket.io (WebSockets)
-- **Frontend**: Vanilla JS (Modular ES6), CSS3, HTML5
+- **Backend**: Node.js & Express.js.
+- **Database**: PostgreSQL (Relational) with auto-migration support.
+- **Real-time**: Socket.io for P2P messaging.
+- **Frontend**: Vanilla JS Single Page Application (SPA).
+- **File Storage**: Local filesystem storage with Multer.
 
 ## 3. Directory Structure
 ```text
 Yank-UBE/
-├── public/                 # Static frontend files
-│   ├── index.html          # Main SPA container
-│   ├── ember.js            # Frontend logic (API & Sockets)
-│   └── ember.css           # Global styles & variables
-├── server.js               # Express server, API, & DB Init
-├── Dockerfile              # App containerization
-├── docker-compose.yml      # Multi-container orchestration (App + Postgres)
-└── package.json            # Dependencies & Scripts
+├── public/                 # Static Assets & Frontend
+│   ├── uploads/            # User-uploaded book covers (git-ignored)
+│   ├── index.html          # SPA Entry Point
+│   ├── ember.js            # Core Frontend Logic & Socket Client
+│   └── ember.css           # Global Styles & Landing Page Design
+├── server.js               # Main Server (API, Sockets, DB Migrations)
+├── Dockerfile              # Production Build Config
+├── docker-compose.yml      # Orchestration (App + DB)
+├── .env                    # Local Environment Config (git-ignored)
+└── package.json            # NPM Scripts & Dependencies
 ```
 
-## 4. Database Schema
-### Users Table
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| id | SERIAL | Primary Key |
-| name | VARCHAR(100) | Full Name |
-| email | VARCHAR(100) | Unique Email |
-| phone | VARCHAR(20) | Contact Number |
-| password | VARCHAR(255) | Bcrypt Hashed Password |
-| roles | VARCHAR(20) | 'user' or 'admin' |
+## 4. Database Schema & Initialization
+### Schema Details
+- **Users**: Stores profile data, phone numbers, and `roles` ('user' or 'admin').
+- **Books**: Stores listings with `image` paths and `owner_id`.
+- **Exchanges**: Tracks trade requests between users.
+- **Messages**: Stores chat history between users.
 
-### Books Table
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| id | SERIAL | Primary Key |
-| title | VARCHAR(255) | Book Title |
-| author | VARCHAR(255) | Author Name |
-| category | VARCHAR(100) | e.g., 'Fiction', 'Tech' |
-| condition | VARCHAR(100) | e.g., 'Good', 'New' |
-| price | INTEGER | Sale price |
-| status | VARCHAR(20) | 'available', 'sold', 'exchanged' |
-| owner_id | INTEGER | FK to Users(id) |
+### Auto-Initialization (`initDb`)
+Upon server start, the system:
+1.  Creates all tables if they do not exist.
+2.  Ensures the `roles` column exists in the `users` table via `ADD COLUMN IF NOT EXISTS`.
+3.  **Seeding**: Checks for `admin@ubep.com`. If missing, it creates the default admin (`admin123`).
+4.  Seeds demo users (`alex@ubep.com`, `jamie@ubep.com`) if the table is empty.
 
-### Exchanges Table
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| id | SERIAL | Primary Key |
-| from_user_id | INTEGER | Initiator (FK) |
-| to_user_id | INTEGER | Receiver (FK) |
-| offered_book_id | INTEGER | Book offered by initiator (FK) |
-| requested_book_id | INTEGER | Book requested (FK) |
-| status | VARCHAR(20) | 'pending', 'accepted', 'rejected' |
+## 5. Media Handling (Image Uploads)
+UBEP uses **Multer** for handling book cover uploads:
+- **Restriction**: Only `.jpg`, `.jpeg`, and `.png` are accepted.
+- **Storage**: Files are saved to `public/uploads/` with a unique name (`Date.now() + random_suffix`).
+- **DB Record**: The `books` table stores the relative URL (e.g., `/uploads/image.png`).
 
-## 5. API Reference
+## 6. API Reference
 ### Authentication
-- `POST /api/users`: Register new user. Payload: `{name, email, phone, password}`.
-- `POST /api/login`: Authenticate user. Payload: `{email, password}`.
+- `POST /api/users`: Registration (Multipart support for potential future avatars, currently JSON).
+- `POST /api/login`: Returns User object on success.
 
-### Books
-- `GET /api/books`: Fetch all books with owner info.
-- `POST /api/books`: List new book. Payload: `{title, author, category, condition, price, ownerId, image}`.
-- `DELETE /api/books/:id`: Remove listing.
+### Book Management
+- `POST /api/books`: **Requires Multipart/Form-Data**. Fields: `title`, `author`, `category`, `condition`, `price`, `ownerId`. File field: `image`.
+- `GET /api/books`: Returns all available books.
 
-### Messaging & Exchanges
-- `GET /api/messages/:userId`: History for a user.
-- `POST /api/exchanges`: Propose exchange. Payload: `{fromUserId, toUserId, offeredBookId, requestedBookId}`.
+### Admin Tools
+- `GET /api/admin/stats`: Returns JSON with total users, books, and exchanges.
+- `GET /api/admin/users`: Returns list of all registered users (Admin only).
 
-## 6. Socket.io Integration
-The server listens for `join` and `send_message` events.
-- **Join**: Associates a socket with a user ID room (`user_{userId}`).
-- **Send Message**: Stores the message in DB and emits `receive_message` to both sender and receiver rooms.
+## 7. Real-time Messaging (WebSockets)
+- **Room Strategy**: Every user joins a private room named `user_{id}`.
+- **Flow**: When a message is sent, the server saves it to the DB and emits it to both the sender and receiver rooms using `io.to()`.
 
-## 7. Setup & Development
-1. Clone repo.
-2. Ensure Docker Desktop is running.
-3. Run `docker-compose up --build`.
-4. Access at `http://localhost:9000`.
+## 8. Frontend Navigation Logic
+- **Landing Page**: Controlled by `showLoginScreen()`. Navigation links are hidden.
+- **Main App**: Controlled by `renderCurrentView()`. Navigation tabs are revealed after `currentUser` session is established.
+- **State Management**: Uses `localStorage` for session persistence.
+
+## 9. Setup & Deployment
+### Docker (Recommended)
+```bash
+docker-compose down -v  # Wipe old volumes if schema changed
+docker-compose up --build
+```
+- **Port**: 9000
+- **Admin**: `admin@ubep.com` / `admin123`
+
+### Manual Run
+1. Setup PostgreSQL database `ubep`.
+2. Configure `.env` with `DATABASE_URL`.
+3. `npm install`
+4. `npm start`
+- **Port**: 3000
