@@ -258,13 +258,9 @@ async function initDb() {
         password VARCHAR(255),
         roles VARCHAR(20) DEFAULT 'user'
       );
-      -- Ensure roles column exists if table was created without it
-      DO $$ 
-      BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='roles') THEN 
-          ALTER TABLE users ADD COLUMN roles VARCHAR(20) DEFAULT 'user'; 
-        END IF; 
-      END $$;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS roles VARCHAR(20) DEFAULT 'user';
+    `);
+    console.log('User table verified/updated');
       CREATE TABLE IF NOT EXISTS books (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255),
