@@ -295,17 +295,23 @@ async function initDb() {
       );
     `);
     
-    // Seed Users
-    const usersCount = await pool.query("SELECT COUNT(*) FROM users");
-    if (parseInt(usersCount.rows[0].count) === 0) {
-      console.log('Seeding initial users...');
+    // Seed Admin if not exists
+    const adminCheck = await pool.query("SELECT * FROM users WHERE email = $1", ['admin@ubep.com']);
+    if (adminCheck.rows.length === 0) {
+      console.log('Seeding admin user...');
       const adminPass = await bcrypt.hash('admin123', 10);
-      const userPass = await bcrypt.hash('123', 10);
-      
       await pool.query(
         "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
         ['Admin User', 'admin@ubep.com', adminPass, 'admin']
       );
+    }
+
+    // Seed Demo Users if table is empty
+    const usersCount = await pool.query("SELECT COUNT(*) FROM users");
+    if (parseInt(usersCount.rows[0].count) <= 1) { // Only admin exists
+      console.log('Seeding initial demo users...');
+      const userPass = await bcrypt.hash('123', 10);
+      
       await pool.query(
         "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
         ['Alex Reader', 'alex@ubep.com', userPass, 'user']
