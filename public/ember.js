@@ -15,6 +15,17 @@ function initSocket(userId) {
 
 // ========== HELPERS ==========
 async function apiFetch(endpoint, options = {}) {
+  // Check session timeout before each call
+  if (currentUser) {
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (session && (Date.now() - session.loginTimestamp > SESSION_TIMEOUT_MS)) {
+      clearSession();
+      showToast('Session expired. Please login again.', true);
+      renderCurrentView();
+      throw new Error('Session expired');
+    }
+  }
+
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
@@ -35,9 +46,29 @@ async function apiFetch(endpoint, options = {}) {
 
 let currentUser = null;
 const SESSION_KEY = 'ubep_session';
+const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-function getSession() { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
-function setSession(user) { currentUser = user; localStorage.setItem(SESSION_KEY, JSON.stringify(user)); if (user) initSocket(user.id); }
+function getSession() { 
+  const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+  if (session && session.loginTimestamp) {
+    const isExpired = (Date.now() - session.loginTimestamp) > SESSION_TIMEOUT_MS;
+    if (isExpired) {
+      clearSession();
+      return null;
+    }
+    return session;
+  }
+  return null;
+}
+
+function setSession(user) { 
+  if (user) {
+    user.loginTimestamp = Date.now();
+    initSocket(user.id);
+  }
+  currentUser = user; 
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user)); 
+}
 function clearSession() { localStorage.removeItem(SESSION_KEY); currentUser = null; }
 
 function showToast(msg, isError = false) {
@@ -94,6 +125,9 @@ function showLoginScreen() {
       <input type="password" id="loginPass" class="input" placeholder="Password" style="margin-bottom: 1rem;" required>
       <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
     </form>
+    <div style="text-align: right; margin-top: 0.5rem;">
+      <a href="#" id="forgotPassBtn" style="font-size: 0.85rem; color: var(--warm); text-decoration: none;">Forgot Password?</a>
+    </div>
     <div style="margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1rem;">
       <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Don't have an account?</p>
       <button id="showSignupBtn" class="btn btn-outline" style="width: 100%;">Create Account</button>
@@ -117,6 +151,69 @@ function showLoginScreen() {
   const container = document.getElementById('authForm');
   container.innerHTML = loginHtml;
   
+  function showForgotPasswordScreen() {
+    document.getElementById('authTitle').innerText = 'Reset Password';
+    document.getElementById('authSubtitle').innerText = 'Enter your email to receive a reset link';
+    container.innerHTML = `
+      <form id="forgotForm">
+        <input type="email" id="forgotEmail" class="input" placeholder="Registered Email" style="margin-bottom: 1rem;" required>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Get Reset Link</button>
+      </form>
+      <button id="backToLoginFromForgot" class="btn btn-outline" style="width: 100%; margin-top: 1rem;">Back to Login</button>
+    `;
+
+    document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('forgotEmail').value;
+      try {
+        const res = await apiFetch('/api/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ email })
+        });
+        showToast(res.message);
+        container.innerHTML = `<p style="padding: 1rem; color: #2d3748; background: #ebf8ff; border-radius: 8px;">Check the server console for the reset link (simulating email send).</p>
+        <button onclick="location.reload()" class="btn btn-outline" style="width: 100%; margin-top: 1rem;">Back to Login</button>`;
+      } catch(e) {}
+    });
+
+    document.getElementById('backToLoginFromForgot').addEventListener('click', () => {
+      document.getElementById('authTitle').innerText = 'Welcome Back';
+      document.getElementById('authSubtitle').innerText = 'Please login to your account';
+      container.innerHTML = loginHtml;
+      attachLogin();
+    });
+  }
+
+  function showResetPasswordScreen(token) {
+    const root = document.getElementById('appRoot');
+    root.innerHTML = `
+      <div style="max-width: 450px; margin: 5rem auto;">
+        <div class="card auth-card">
+          <h2>New Password</h2>
+          <p style="margin-bottom: 1.5rem;">Enter your new secure password</p>
+          <form id="resetForm">
+            <input type="password" id="newPass" class="input" placeholder="New Password" style="margin-bottom: 1rem;" required>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Update Password</button>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('resetForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newPassword = document.getElementById('newPass').value;
+      try {
+        const res = await apiFetch('/api/reset-password', {
+          method: 'POST',
+          body: JSON.stringify({ token, newPassword })
+        });
+        showToast(res.message);
+        window.location.hash = '';
+        location.reload();
+      } catch(e) {}
+    });
+  }
+
   function attachLogin() {
     document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -132,6 +229,12 @@ function showLoginScreen() {
         renderCurrentView();
       } catch (e) {}
     });
+
+    document.getElementById('forgotPassBtn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      showForgotPasswordScreen();
+    });
+
     document.getElementById('showSignupBtn')?.addEventListener('click', () => {
       document.getElementById('authTitle').innerText = 'Join UBEP';
       document.getElementById('authSubtitle').innerText = 'Start your reading journey today';
@@ -498,6 +601,13 @@ function renderAddBookForm() {
 
 // ========== MAIN RENDER ENGINE ==========
 function renderCurrentView() {
+  const hash = window.location.hash;
+  if (hash.startsWith('#reset-password')) {
+    const params = new URLSearchParams(hash.split('?')[1]);
+    const token = params.get('token');
+    return showResetPasswordScreen(token);
+  }
+
   const navbar = document.getElementById('mainNavbar');
   if(!currentUser) {
     if (navbar) navbar.style.display = 'none';

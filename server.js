@@ -9,6 +9,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const multer = require('multer');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -173,6 +174,53 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+// Password Reset
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (user.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const token = crypto.randomBytes(20).toString('hex');
+    const expiry = new Date(Date.now() + 3600000); // 1 hour
+
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3',
+      [token, expiry, email]
+    );
+
+    // In a real app, send email. For capstone, we log it.
+    console.log(`[PASSWORD RESET] Email: ${email}, Token: ${token}`);
+    console.log(`Reset URL: http://localhost:3000/#reset-password?token=${token}`);
+    
+    res.json({ message: 'Reset token generated and logged to server console.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  try {
+    const user = await pool.query(
+      'SELECT id FROM users WHERE reset_token = $1 AND reset_token_expiry > NOW()',
+      [token]
+    );
+
+    if (user.rows.length === 0) return res.status(400).json({ error: 'Invalid or expired token' });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
+      [hashedPassword, user.rows[0].id]
+    );
+
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Messages
 app.get('/api/messages/:userId', async (req, res) => {
   try {
@@ -259,6 +307,8 @@ async function initDb() {
         roles VARCHAR(20) DEFAULT 'user'
       );
       ALTER TABLE users ADD COLUMN IF NOT EXISTS roles VARCHAR(20) DEFAULT 'user';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP;
 
       CREATE TABLE IF NOT EXISTS books (
         id SERIAL PRIMARY KEY,
