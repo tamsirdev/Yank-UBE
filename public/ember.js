@@ -46,7 +46,9 @@ async function apiFetch(endpoint, options = {}) {
 
 let currentUser = null;
 const SESSION_KEY = 'ubep_session';
-const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
+const SESSION_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+//old: 2 hours, but for testing we set it to 2 minutes. In production, change back to 2 hours.
+//const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 function getSession() { 
   const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');

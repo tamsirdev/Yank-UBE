@@ -294,88 +294,100 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Initialize Database
-async function initDb() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100),
-        email VARCHAR(100) UNIQUE,
-        phone VARCHAR(20),
-        password VARCHAR(255),
-        roles VARCHAR(20) DEFAULT 'user'
-      );
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS roles VARCHAR(20) DEFAULT 'user';
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP;
+// Initialize Database with Retry Logic
+async function initDb(retries = 5) {
+  while (retries > 0) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100),
+          email VARCHAR(100) UNIQUE,
+          phone VARCHAR(20),
+          password VARCHAR(255),
+          roles VARCHAR(20) DEFAULT 'user'
+        );
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS roles VARCHAR(20) DEFAULT 'user';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP;
 
-      CREATE TABLE IF NOT EXISTS books (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255),
-        author VARCHAR(255),
-        category VARCHAR(100),
-        condition VARCHAR(100),
-        price INTEGER,
-        status VARCHAR(20) DEFAULT 'available',
-        owner_id INTEGER REFERENCES users(id),
-        image TEXT
-      );
-      CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        sender_id INTEGER REFERENCES users(id),
-        receiver_id INTEGER REFERENCES users(id),
-        text TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_read BOOLEAN DEFAULT FALSE
-      );
-      CREATE TABLE IF NOT EXISTS exchanges (
-        id SERIAL PRIMARY KEY,
-        from_user_id INTEGER REFERENCES users(id),
-        to_user_id INTEGER REFERENCES users(id),
-        offered_book_id INTEGER REFERENCES books(id),
-        requested_book_id INTEGER REFERENCES books(id),
-        status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    console.log('Database tables verified/updated');
-    
-    // Seed Admin if not exists
-    const adminCheck = await pool.query("SELECT * FROM users WHERE email = $1", ['admin@ubep.com']);
-    if (adminCheck.rows.length === 0) {
-      console.log('Seeding admin user...');
-      const adminPass = await bcrypt.hash('admin123', 10);
-      await pool.query(
-        "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
-        ['Admin User', 'admin@ubep.com', adminPass, 'admin']
-      );
-    }
-
-    // Seed Demo Users if table is empty
-    const usersCount = await pool.query("SELECT COUNT(*) FROM users");
-    if (parseInt(usersCount.rows[0].count) <= 1) { // Only admin exists
-      console.log('Seeding initial demo users...');
-      const userPass = await bcrypt.hash('123', 10);
+        CREATE TABLE IF NOT EXISTS books (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(255),
+          author VARCHAR(255),
+          category VARCHAR(100),
+          condition VARCHAR(100),
+          price INTEGER,
+          status VARCHAR(20) DEFAULT 'available',
+          owner_id INTEGER REFERENCES users(id),
+          image TEXT
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+          id SERIAL PRIMARY KEY,
+          sender_id INTEGER REFERENCES users(id),
+          receiver_id INTEGER REFERENCES users(id),
+          text TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_read BOOLEAN DEFAULT FALSE
+        );
+        CREATE TABLE IF NOT EXISTS exchanges (
+          id SERIAL PRIMARY KEY,
+          from_user_id INTEGER REFERENCES users(id),
+          to_user_id INTEGER REFERENCES users(id),
+          offered_book_id INTEGER REFERENCES books(id),
+          requested_book_id INTEGER REFERENCES books(id),
+          status VARCHAR(20) DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('Database tables verified/updated');
       
-      await pool.query(
-        "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
-        ['Alex Reader', 'alex@ubep.com', userPass, 'user']
-      );
-      await pool.query(
-        "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
-        ['Jamie Bookworm', 'jamie@ubep.com', userPass, 'user']
-      );
-    }
+      // Seed Admin if not exists
+      const adminCheck = await pool.query("SELECT * FROM users WHERE email = $1", ['admin@ubep.com']);
+      if (adminCheck.rows.length === 0) {
+        console.log('Seeding admin user...');
+        const adminPass = await bcrypt.hash('admin123', 10);
+        await pool.query(
+          "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
+          ['Admin User', 'admin@ubep.com', adminPass, 'admin']
+        );
+      }
 
-    console.log('Database initialized');
-  } catch (err) {
-    console.error('Database initialization failed');
-    if (err.code === '42501') {
-      console.error('HINT: Your database user lacks permissions on the "public" schema.');
-      console.error('Run this in psql: GRANT ALL ON SCHEMA public TO ' + (process.env.DATABASE_URL.split(':')[1].replace('//', '') || 'your_user') + ';');
+      // Seed Demo Users if table is empty
+      const usersCount = await pool.query("SELECT COUNT(*) FROM users");
+      if (parseInt(usersCount.rows[0].count) <= 1) { // Only admin exists
+        console.log('Seeding initial demo users...');
+        const userPass = await bcrypt.hash('123', 10);
+        
+        await pool.query(
+          "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
+          ['Alex Reader', 'alex@ubep.com', userPass, 'user']
+        );
+        await pool.query(
+          "INSERT INTO users (name, email, password, roles) VALUES ($1, $2, $3, $4)",
+          ['Jamie Bookworm', 'jamie@ubep.com', userPass, 'user']
+        );
+      }
+
+      console.log('Database initialized');
+      return; // Success, exit the loop
+    } catch (err) {
+      if ((err.code === 'ECONNREFUSED' || err.code === '57P03') && retries > 1) {
+        console.error(`Database not ready (Retries left: ${retries - 1}). Waiting 3 seconds...`);
+        await new Promise(res => setTimeout(res, 3000));
+        retries -= 1;
+        continue;
+      }
+      
+      console.error('Database initialization failed');
+      if (err.code === '42501') {
+        console.error('HINT: Your database user lacks permissions on the "public" schema.');
+        const dbUser = process.env.DATABASE_URL?.match(/\/\/([^:]+):/)?.[1] || 'your_user';
+        console.error(`Run this in psql: GRANT ALL ON SCHEMA public TO ${dbUser};`);
+      }
+      console.error(err);
+      process.exit(1); // Exit with error so Docker can restart the container
     }
-    console.error(err);
   }
 }
 
