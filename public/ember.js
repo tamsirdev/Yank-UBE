@@ -615,18 +615,18 @@ function renderCurrentView() {
   }
   
   if (navbar) navbar.style.display = 'block';
-  const hash = window.location.hash.slice(1) || 'dashboard';
+  const currentHash = window.location.hash.slice(1) || 'dashboard';
   document.getElementById('userGreeting').innerHTML = `👋 ${currentUser.name}`;
   const adminLink = document.getElementById('adminLink');
   if (adminLink) adminLink.style.display = currentUser.roles === 'admin' ? 'block' : 'none';
 
   const views = { dashboard: renderDashboard, browse: renderBrowse, messages: renderMessages, addBook: renderAddBookForm, admin: renderAdmin };
-  if(views[hash]) views[hash]();
+  if(views[currentHash]) views[currentHash]();
   else renderDashboard();
   
   document.querySelectorAll('.nav-link').forEach(link => {
     link.classList.remove('active');
-    if(link.dataset.nav === hash) link.classList.add('active');
+    if(link.dataset.nav === currentHash) link.classList.add('active');
   });
 }
 
